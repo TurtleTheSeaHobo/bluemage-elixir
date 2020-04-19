@@ -1,6 +1,7 @@
 # Bluemage
 
-**TODO: Add description**
+Code for the ACES RED 2A/COMPUTER "Bluemage" experiment package. Re-implemented from the original Python for version for improved
+stability, recoverability, and performance on low-power devices (such as the Raspberry Pi Zero).
 
 ## Installation
 
