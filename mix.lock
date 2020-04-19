@@ -1,0 +1,9 @@
+%{
+  "circuits_gpio": {:hex, :circuits_gpio, "0.4.5", "4d5b0f707c425fc56f03086232259f65482a3d1f1cf15335253636d0bb846446", [:make, :mix], [{:elixir_make, "~> 0.6", [hex: :elixir_make, repo: "hexpm", optional: false]}], "hexpm", "b42d28d60a6cfdfb6b21b66ab0b8c5de0ea5a32b390b61d2fe86a2ad8edb90ad"},
+  "circuits_i2c": {:hex, :circuits_i2c, "0.3.6", "348b8de3cf1ade6c4b92ad7c9de7068df1af0d441df341d7d126d53671924f64", [:make, :mix], [{:elixir_make, "~> 0.6", [hex: :elixir_make, repo: "hexpm", optional: false]}], "hexpm", "da5b2814e429021f22252867a3fa48d77d7fcabeb3ff8a6c40d549227749b6a7"},
+  "crontab": {:hex, :crontab, "1.1.10", "dc9bb1f4299138d47bce38341f5dcbee0aa6c205e864fba7bc847f3b5cb48241", [:mix], [{:ecto, "~> 1.0 or ~> 2.0 or ~> 3.0", [hex: :ecto, repo: "hexpm", optional: true]}], "hexpm", "1347d889d1a0eda997990876b4894359e34bfbbd688acbb0ba28a2795ca40685"},
+  "elixir_make": {:hex, :elixir_make, "0.6.0", "38349f3e29aff4864352084fc736fa7fa0f2995a819a737554f7ebd28b85aaab", [:mix], [], "hexpm", "d522695b93b7f0b4c0fcb2dfe73a6b905b1c301226a5a55cb42e5b14d509e050"},
+  "gen_stage": {:hex, :gen_stage, "1.0.0", "51c8ae56ff54f9a2a604ca583798c210ad245f415115453b773b621c49776df5", [:mix], [], "hexpm", "1d9fc978db5305ac54e6f5fec7adf80cd893b1000cf78271564c516aa2af7706"},
+  "jason": {:hex, :jason, "1.2.0", "10043418c42d2493d0ee212d3fddd25d7ffe484380afad769a0a38795938e448", [:mix], [{:decimal, "~> 1.0", [hex: :decimal, repo: "hexpm", optional: true]}], "hexpm", "116747dbe057794c3a3e4e143b7c8390b29f634e16c78a7f59ba75bfa6852e7f"},
+  "quantum": {:hex, :quantum, "3.0.0-rc.3", "2a42d9c7abc8e349bff2baf6f66a3cab09ac4e907e4f0ffc088c9f27718e8f44", [:mix], [{:crontab, "~> 1.1", [hex: :crontab, repo: "hexpm", optional: false]}, {:gen_stage, "~> 0.14 or ~> 1.0", [hex: :gen_stage, repo: "hexpm", optional: false]}], "hexpm", "2c8a3a8783e28d99bd6fd0e380ef6835ae0e42b31bda151d6ab4a97afa84059a"},
+}
