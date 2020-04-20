@@ -8,22 +8,13 @@ defmodule Bluemage.RTC do
 	def to_rtc_byte(x), do: Integer.to_string(x) |> String.to_integer(16)
 	
 	#Converts RTC time values into UNIX epoch time stamp, accounting for leap years
-	def to_epoch([seconds, minutes, hours, _weekday, days, months, years]) do
-		seconds			+
-		minutes * 60		+
-		hours * 3600		+
-		days * 86400		+
-		to_days(months) * 86400	+
-		div(years, 4) * 86400	+
-		years * 31536000
+	def to_epoch([second, minute, hour, _weekday, day, month, year]) do
+		DateTime.to_unix(%DateTime{
+			year: year + 1970, month: month, day: day, zone_abbr: "UTC",
+			hour: hour, minute: minute, second: second, microsecond: {0, 0},
+			utc_offset: 0, std_offset: 0, time_zone: "Etc/UTC"
+			})
 	end
-
-	#Converts month number into number of days passed by that month
-	def to_days(months), do: to_days(months - 1, 0)
-	def to_days(0, days), do: days
-	def to_days(2, days), do: to_days(1, days + 28)
-	def to_days(months, days) when months in [1, 3, 5, 7, 8, 10, 12], do: to_days(months - 1, days + 31)
-	def to_days(months, days), do: to_days(months - 1, days + 30)
 
 	#Gets the RTC's current time in UNIX epoch time stamp format
 	def get_epoch(ref, dev) do
@@ -31,7 +22,17 @@ defmodule Bluemage.RTC do
 	end
 
 	#Sets the RTC's current time in UNIX epoch time stamp format
-	def set_epoch(ref, dev, epoch) do
-		#TODO
+	def set_epoch(ref, dev, epoch) when is_integer(epoch) do
+		set_epoch(ref, dev, DateTime.from_unix!(epoch))
+	end
+	def set_epoch(ref, dev, datetime) do
+		I2C.write(ref, dev, <<0x00, to_rtc_byte(datetime.second)>>)
+		I2C.write(ref, dev, <<0x01, to_rtc_byte(datetime.minute)>>)
+		I2C.write(ref, dev, <<0x02, to_rtc_byte(datetime.hour)>>)
+		#Skip weekday because its unimportant (it's at address 0x03)
+		I2C.write(ref, dev, <<0x04, to_rtc_byte(datetime.day)>>)
+		I2C.write(ref, dev, <<0x05, to_rtc_byte(datetime.month)>>)
+		I2C.write(ref, dev, <<0x06, to_rtc_byte(datetime.year - 1970)>>)
+		:ok
 	end
 end
