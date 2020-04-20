@@ -1,4 +1,49 @@
 defmodule Bluemage.Ahrs do
+  def update(gx, gy, gz, ax, ay, az, period, %Bluemage.Quaternion{} = quat) do
+    beta = 1.0
+    q1x2 = 2.0 * quat.q1
+    q2x2 = 2.0 * quat.q2
+    q3x2 = 2.0 * quat.q3
+    q4x2 = 2.0 * quat.q4
+    q1x4 = 4.0 * quat.q1
+    q2x4 = 4.0 * quat.q2
+    q3x4 = 4.0 * quat.q3
+    q2x8 = 8.0 * quat.q2
+    q3x8 = 8.0 * quat.q3
+    q1q1 = quat.q1 * quat.q1
+    q2q2 = quat.q2 * quat.q2
+    q3q3 = quat.q3 * quat.q3
+    q4q4 = quat.q4 * quat.q4
+
+    # Normalise accelerometer measurement
+    norm = :math.sqrt(ax * ax + ay * ay + az * az)
+    norm = 1.0 / norm
+    ax = ax * norm
+    ay = ay * norm
+    az = az * norm
+
+    # Gradient decent algorithm corrective step
+    s1 = q1x4 * q3q3 + q3x2 * ax + q1x4 * q2q2 - q2x2 * ay
+    s2 = q2x4 * q4q4 - q4x2 * ax + 4.0 * q1q1 * quat.q2 - q1x2 * ay - q2x4 + q2x8 * q2q2 + q2x8 * q3q3 + q2x4 * az
+    s3 = 4.0 * q1q1 * quat.q3 + q1x2 * ax + q3x4 * q4q4 - q4x2 * ay - q3x4 + q3x8 * q2q2 + q3x8 * q3q3 + q3x4 * az
+    s4 = 4.0 * q2q2 * quat.q4 - q2x2 * ax + 4.0 * q3q3 * quat.q4 - q3x2 * ay
+    norm = 1.0 / :math.sqrt(s1 * s1 + s2 * s2 + s3 * s3 + s4 * s4)
+    s1 = s1 * norm
+    s2 = s2 * norm
+    s3 = s3 * norm
+    s4 = s4 * norm
+
+    # Compute rate of change of quaternion
+    qDot1 = 0.5 * (-1.0 * quat.q2 * gx - quat.q3 * gy - quat.q4 * gz) - beta * s1
+    qDot2 = 0.5 * (quat.q1 * gx + quat.q3 * gz - quat.q4 * gy) - beta * s2
+    qDot3 = 0.5 * (quat.q1 * gy - quat.q2 * gz + quat.q4 * gx) - beta * s3
+    qDot4 = 0.5 * (quat.q1 * gz + quat.q2 * gy - quat.q3 * gx) - beta * s4
+
+    # Integrate to yield quaternion
+    norm = 1.0 / :math.sqrt(quat.q1 * quat.q1 + quat.q2 * quat.q2 + quat.q3 * quat.q3 + quat.q4 * quat.q4)
+    %Bluemage.Quaternion{q1: (quat.q1 + (qDot1 * period) * norm), q2: (quat.q2 + (qDot2 * period) * norm), q3: (quat.q3 + (qDot3 * period) * norm), q4: (quat.q4 + (qDot4 * period) * norm)}
+  end
+
   def update(gx, gy, gz, ax, ay, az, mx, my, mz, period, %Bluemage.Quaternion{} = quat) do
     beta = 1.0   
     q1x2 = 2.0 * quat.q1
