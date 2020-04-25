@@ -9,7 +9,8 @@ defmodule Bluemage.Application do
     import Supervisor.Spec
 
     children = [
-      Bluemage.Scheduler
+      Bluemage.Scheduler,
+      Bluemage.Experiment
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
