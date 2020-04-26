@@ -3,11 +3,51 @@ defmodule Bluemage.IMU do
 	use Bitwise
 	
 	#Convert unsigned integer to bitwise-equivalent signed integer given the integer and word length
-	def to_signed(x, w) when x >= (1 <<< (w - 1)), do: x - (1 <<< w)
-	def to_signed(x, _w), do: x
+	defp to_signed(x, w) when x >= (1 <<< (w - 1)), do: x - (1 <<< w)
+	defp to_signed(x, _w), do: x
+
+	def child_spec(opts) do
+		%{
+		id: __MODULE__,
+		start: {__MODULE__, :start_link, [opts]},
+		type: :worker,
+		restart: :permanent,
+		shutdown: 500
+		}
+	end
+
+	def start_link(opts) do
+		pid = spawn_link(__MODULE__, :init, [opts])
+		Process.register(pid, Bluemage.IMU)
+		{:ok, pid}
+	end
+
+	def init(_opts) do
+		{:ok, ref} = I2C.open("i2c-1")
+
+		config = %{
+			:ref		=> ref,		#I2C bus reference
+			:g_dev		=> 0x21,	#IMU gyro device address
+			:a_dev		=> 0x1F,	#IMU acc/mag device address 
+			:g_range	=> 250,		#IMU gyro sensor range (DPS)
+			:a_range	=> 2,		#IMU acc/mag sensor range (+/-G)
+			:frequency	=> 100.0	#Sensor frequncy/data rate (Hz)
+			}
+
+		start_IMU(config)
+		loop(config)
+	end
+
+	def loop(config) do
+		receive do
+			{:ready?, pid}			-> send(pid, {true, self()})
+			{:get_IMU_data, pid}	-> send(pid, {get_IMU_data(config), self()})
+		end
+		loop(config)
+	end
 	
 	#Start the FXOS setup ritual with the given acceleration range (+/- G) and frequency (Hz)
-	def start_FXOS(ref, dev, range, frequency) do
+	def start_FXOS(%{ref: ref, a_dev: dev, a_range: range, frequency: frequency}) do
 		#Set CTRL_REG1 to 0000 0000 to enter standby mode
 		I2C.write(ref, dev, <<0x2A, 0x00>>)
 		#Set XYZ_DATA_CFG to 0000 00xx select acceleration range
@@ -37,7 +77,7 @@ defmodule Bluemage.IMU do
 	end
 
 	#Get the current FXOS acceloremeter/magnetometer data
-	def get_FXOS_data(ref, dev, range) do
+	def get_FXOS_data(%{ref: ref, a_dev: dev, a_range: range}) do
 		#Set STATUS to 1000 0000 for... some reason (idk, Adafruit does it)
 		I2C.write(ref, dev, <<0x00, 0x80>>)
 		#Read 13 bytes from starting register 0x00
@@ -54,7 +94,7 @@ defmodule Bluemage.IMU do
 	end
 
 	#Start the FXAS setup ritual with the given angular velocity range (+/- DPS) and frequency (Hz)
-	def start_FXAS(ref, dev, range, frequency) do
+	def start_FXAS(%{ref: ref, g_dev: dev, g_range: range, frequency: frequency}) do
 		#Set CTRL_REG1 to 0000 0000 to enter standby mode
 		I2C.write(ref, dev, <<0x13, 0x00>>)
 		#Set CTRL_REG1 to 0100 0000 to perform full reset
@@ -80,7 +120,7 @@ defmodule Bluemage.IMU do
 	end
 
 	#Get the current FXAS gyroscope data
-	def get_FXAS_data(ref, dev, range) do
+	def get_FXAS_data(%{ref: ref, g_dev: dev, g_range: range}) do
 		#Set STATUS to 1000 0000 for... some reason (idk, Adafruit does it)
 		I2C.write(ref, dev, <<0x00, 0x80>>)
 		#Read 7 bytes from starting register 0x00
@@ -94,14 +134,14 @@ defmodule Bluemage.IMU do
 	end
 
 	#Start both sensor setup rituals with given ranges on a single frequency
-	def start_IMU(ref, g_dev, a_dev, g_range, a_range, frequency) do
-		start_FXAS(ref, g_dev, g_range, frequency)
-		start_FXOS(ref, a_dev, a_range, frequency)
+	def start_IMU(config) do
+		start_FXAS(config)
+		start_FXOS(config)
 		:ok
 	end
 
 	#Get the current IMU data in a quick-succession read
-	def get_IMU_data(ref, g_dev, a_dev, g_range, a_range) do
-		get_FXAS_data(ref, g_dev, g_range) ++ get_FXOS_data(ref, a_dev, a_range)
+	def get_IMU_data(config) do
+		get_FXAS_data(config) ++ get_FXOS_data(config)
 	end
 end

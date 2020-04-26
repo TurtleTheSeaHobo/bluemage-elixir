@@ -1,13 +1,25 @@
 defmodule Bluemage.Experiment do
-	alias Circuits.I2C
 	alias Bluemage.IMU
 	alias Bluemage.RTC
 	alias Bluemage.Ahrs
+	require Logger
 
+	#Reverses lists
 	defp reverse(list), do: reverse(list, [])
 	defp reverse([head | []], list), do: [head] ++ list
 	defp reverse([head | tail], list), do: reverse(tail, [head] ++ list)
 
+	#Sends message to named process, then awaits and returns reply
+	defp yell(target, body, timeout \\ 1_000) do
+		pid = Process.whereis(target)
+		send(pid, body)
+		receive do
+			{reply, pid}	-> {reply, pid}
+		after
+			timeout			-> {:err, :timed_out}
+		end
+	end
+	
 	def child_spec(opts) do
 		%{
 		id: __MODULE__,
@@ -25,56 +37,57 @@ defmodule Bluemage.Experiment do
 	end
 
 	def init(_opts) do
-		{:ok, ref} = I2C.open("i2c-1")
-
-		config = %{
-		:ref	 => ref,		#I2C bus reference
-		:c_dev	 => 0x68,		#RTC device address
-		:g_dev	 => 0x21,		#IMU gyro device address
-		:a_dev	 => 0x1F,		#IMU acc/mag device address 
-		:g_range => 250,		#IMU gyro sensor range (DPS)
-		:a_range => 2			#IMU acc/mag sensor range (+/-G)
-		}
-
 		packet = %{
-		"info" => %{
-			"name" => "Bluemage",
-			"team" => "LSN-SEDS"
-		},
-		"data" => [[%Bluemage.Quaternion{}]]
+			"info" => %{
+				"name" => "Bluemage",
+				"team" => "LSN-SEDS"
+			},
+			"data" => [[%Bluemage.Quaternion{}]]
 		}
+	
+		Logger.info("Checking for IMU and RTC driver readiness...")
 
-		IMU.start_IMU(config.ref, config.g_dev, config.a_dev, config.g_range, config.a_range, 100.0)
-		loop(packet, config)	
+		case yell(IMU, {:ready?, self()}, 10_000) do
+			{true, _pid}	 	-> Logger.info("Got ready signal from IMU driver.")
+			{:err, :timed_out}	-> Logger.info("Timed out waiting for ready signal from IMU driver.")
+		end
+
+		case yell(RTC, {:ready?, self()}, 10_000) do
+			{true, _pid}		-> Logger.info("Got ready signal from RTC driver." )
+			{:err, :timed_out}	-> Logger.info("Timed out waiting for ready signal from RTC driver.")
+		end
+		
+		loop(packet)	
 	end
 
-	def trigger_push(), do: send(self(), :push)
-
-	def loop(packet, config) do
+	def loop(packet) do
 		receive do
-			:push	-> push(packet, RTC.get_epoch(config.ref, config.c_dev))
+			:push	-> push(packet)
 		after
-			0_020	-> update(packet, config)
-		end |> loop(config)
+			0_020	-> update(packet)
+		end |> loop()
 	end
 	
-	def push(packet, time) do
-		{:ok, file} = File.open("/tmp/experiment/" <> Integer.to_string(time) <> ".json", [:write])
+	def push(packet) do
+		{:ok, file} = File.open("/tmp/experiment/" <> Integer.to_string(yell(RTC, {:get_epoch, self()}) |> elem(0)) <> ".json", [:write])
+
 		IO.binwrite(file, Jason.encode!(%{packet | "data" => reverse(tl(packet["data"]))}))
 		File.close(file)
+
 		%{packet | "data" => [hd(packet["data"])]}
 	end
 
-	def update(packet, config) do
+	def update(packet) do
 		[
-		gx: gx, gy: gy, gz: gz,
-		ax: ax, ay: ay, az: az,
-		mx: mx, my: my, mz: mz
-		] = IMU.get_IMU_data(config.ref, config.g_dev, config.a_dev, config.g_range, config.a_range)
+			gx: gx, gy: gy, gz: gz,
+			ax: ax, ay: ay, az: az,
+			mx: mx, my: my, mz: mz
+		] = yell(IMU, {:get_IMU_data, self()}) |> elem(0) |> Enum.map(fn {k, v} -> {k, Float.round(v, 9)} end)
+
 		%{packet | "data" => 
 			[[
-			Ahrs.update(gx, gy, gz, ax, ay, az, mx, my, mz, 0.02, hd(hd(packet["data"]))),
-			gx, gy, gz, ax, ay, az, mx, my, mz
+				Ahrs.update(gx, gy, gz, ax, ay, az, mx, my, mz, 0.02, hd(hd(packet["data"]))),
+				gx, gy, gz, ax, ay, az, mx, my, mz
 			]] ++ packet["data"]
 		}
 	end
