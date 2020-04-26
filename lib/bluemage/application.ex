@@ -12,6 +12,7 @@ defmodule Bluemage.Application do
       Bluemage.RTC,
       Bluemage.IMU,
       Bluemage.Scheduler,
+      Bluemage.Packetizer,
       Bluemage.Experiment
     ]
 

@@ -1,5 +1,6 @@
 defmodule Bluemage.RTC do
 	alias Circuits.I2C
+	require Logger
 
 	#Converts a byte of 2 adjacent 4-bit numbers into a single 2-digit decimal number
 	defp to_decimal(x), do: Integer.to_string(x, 16) |> String.to_integer

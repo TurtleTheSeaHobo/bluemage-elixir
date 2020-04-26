@@ -2,21 +2,18 @@ defmodule Bluemage.Experiment do
 	alias Bluemage.IMU
 	alias Bluemage.RTC
 	alias Bluemage.Ahrs
+	alias Bluemage.Quaternion
+	alias Bluemage.Packetizer
 	require Logger
-
-	#Reverses lists
-	defp reverse(list), do: reverse(list, [])
-	defp reverse([head | []], list), do: [head] ++ list
-	defp reverse([head | tail], list), do: reverse(tail, [head] ++ list)
 
 	#Sends message to named process, then awaits and returns reply
 	defp yell(target, body, timeout \\ 1_000) do
-		pid = Process.whereis(target)
-		send(pid, body)
+		target_pid = Process.whereis(target)
+		send(target_pid, body)
 		receive do
-			{reply, pid}	-> {reply, pid}
+			{reply, pid} when pid == target_pid	-> {reply, pid}
 		after
-			timeout			-> {:err, :timed_out}
+			timeout								-> {:err, :timed_out}
 		end
 	end
 	
@@ -37,14 +34,6 @@ defmodule Bluemage.Experiment do
 	end
 
 	def init(_opts) do
-		packet = %{
-			"info" => %{
-				"name" => "Bluemage",
-				"team" => "LSN-SEDS"
-			},
-			"data" => [[%Bluemage.Quaternion{}]]
-		}
-	
 		Logger.info("Checking for IMU and RTC driver readiness...")
 
 		case yell(IMU, {:ready?, self()}, 10_000) do
@@ -56,39 +45,40 @@ defmodule Bluemage.Experiment do
 			{true, _pid}		-> Logger.info("Got ready signal from RTC driver." )
 			{:err, :timed_out}	-> Logger.info("Timed out waiting for ready signal from RTC driver.")
 		end
+
+		datapoint = [%Bluemage.Quaternion{}, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 		
-		loop(packet)	
+		loop(datapoint, 1)	
 	end
 
-	def loop(packet) do
+	#Main loop. Updates data at 100Hz and pushes packets at 50Hz.
+	def loop(datapoint, 0) do
 		receive do
-			:push	-> push(packet)
 		after
-			0_020	-> update(packet)
-		end |> loop()
+			0_010	-> 
+				yell(Packetizer, {:update_packet, self(), datapoint})
+				update_datapoint(datapoint)
+		end |> loop(1)
 	end
-	
-	def push(packet) do
-		{:ok, file} = File.open("/tmp/experiment/" <> Integer.to_string(yell(RTC, {:get_epoch, self()}) |> elem(0)) <> ".json", [:write])
-
-		IO.binwrite(file, Jason.encode!(%{packet | "data" => reverse(tl(packet["data"]))}))
-		File.close(file)
-
-		%{packet | "data" => [hd(packet["data"])]}
+	def loop(datapoint, 1) do
+		receive do
+		after
+			0_010	-> 
+				update_datapoint(datapoint)
+		end |> loop(0)
 	end
 
-	def update(packet) do
+	def update_datapoint([quaternion | _]) do
 		[
 			gx: gx, gy: gy, gz: gz,
 			ax: ax, ay: ay, az: az,
 			mx: mx, my: my, mz: mz
-		] = yell(IMU, {:get_IMU_data, self()}) |> elem(0) |> Enum.map(fn {k, v} -> {k, Float.round(v, 9)} end)
+		] = yell(IMU, {:get_IMU_data, self()}) |> elem(0) |> Enum.map(fn {k, v} -> {k, Float.round(v, 6)} end)
 
-		%{packet | "data" => 
-			[[
-				Ahrs.update(gx, gy, gz, ax, ay, az, mx, my, mz, 0.02, hd(hd(packet["data"]))),
-				gx, gy, gz, ax, ay, az, mx, my, mz
-			]] ++ packet["data"]
-		}
+		[
+			Ahrs.update(gx, gy, gz, ax, ay, az, mx, my, mz, 0.01, quaternion) 
+			|> Quaternion.map(fn {k, v} -> {k, Float.round(v, 9)} end),
+			gx, gy, gz, ax, ay, az, mx, my, mz
+		]
 	end
 end
