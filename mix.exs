@@ -27,6 +27,7 @@ defmodule Bluemage.MixProject do
       {:circuits_gpio, "~> 0.4"},
       {:circuits_i2c, "~> 0.1"},
       {:jason, "~> 1.2"},
+      {:pipe_to, "~> 0.2"},
       {:quantum, "~> 3.0-rc"}
     ]
   end

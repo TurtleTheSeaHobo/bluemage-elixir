@@ -42,6 +42,7 @@ defmodule Bluemage.IMU do
 		receive do
 			{:ready?, pid}			-> send(pid, {true, self()})
 			{:get_IMU_data, pid}	-> send(pid, {get_IMU_data(config), self()})
+			{:get_FXOS_test, pid}	-> send(pid, {get_FXOS_test(config), self()})
 		end
 		loop(config)
 	end
@@ -74,6 +75,27 @@ defmodule Bluemage.IMU do
 		#Set MCRTL_REG2 to 0010 0000 to select jumping to register 0x33 after reading 0x06
 		I2C.write(ref, dev, <<0x5C, 0x20>>)
 		:ok
+	end
+
+	#Get the results of the FXOS self test function for error correction
+	def get_FXOS_test(%{ref: ref, a_dev: dev, a_range: range}, tests \\ 16) do
+		#Read CTRL_REG2 and rewrite it with ST bit high (1xxx xxxx)
+		<<reg>> = I2C.write_read!(ref, dev, <<0x2B>>, 1)
+		I2C.write(ref, dev, <<0x2B, reg ||| 0x80>>)
+		#Recurse and get the post-test FXOS datapoints
+		get_FXOS_test(%{ref: ref, a_dev: dev, a_range: range}, tests - 1, get_FXOS_data(%{ref: ref, a_dev: dev, a_range: range}))
+	end
+	def get_FXOS_test(%{ref: ref, a_dev: dev, a_range: range}, 0, data) do
+		#Read CTRL_REG2 and rewrite it with ST bit low (0xxx xxxx)
+		<<reg>> = I2C.write_read!(ref, dev, <<0x2B>>, 1)
+		I2C.write(ref, dev, <<0x2B, reg ^^^ 0x80>>)
+		#Return final mean self-test data
+		data
+	end
+	def get_FXOS_test(%{ref: ref, a_dev: dev, a_range: range}, tests, data) do
+		mean = get_FXOS_data(%{ref: ref, a_dev: dev, a_range: range})
+		|> Enum.map(fn {k, v} -> {k, (data[k] + v) / 2} end)
+		get_FXOS_test(%{ref: ref, a_dev: dev, a_range: range}, tests - 1, mean)
 	end
 
 	#Get the current FXOS acceloremeter/magnetometer data
