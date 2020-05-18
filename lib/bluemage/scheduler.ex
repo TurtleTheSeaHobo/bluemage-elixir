@@ -1,3 +1,3 @@
 defmodule Bluemage.Scheduler do
-	use Quantum, otp_app: :bluemage
+  use Quantum, otp_app: :bluemage
 end
