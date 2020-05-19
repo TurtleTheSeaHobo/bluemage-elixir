@@ -48,7 +48,7 @@ defmodule Bluemage.IMU do
     receive do
       {:ready?, pid} -> send(pid, {true, self()})
       {:get_IMU_data, pid} -> send(pid, {get_IMU_data(config), self()})
-      {:get_FXOS_test, pid} -> send(pid, {get_FXOS_test(config), self()})
+      {:get_IMU_test, pid} -> send(pid, {get_IMU_test(config), self()})
     end
 
     loop(config)
@@ -96,7 +96,7 @@ defmodule Bluemage.IMU do
     get_FXOS_test(
       %{ref: ref, a_dev: dev, a_range: range},
       tests - 1,
-      get_FXOS_data(%{ref: ref, a_dev: dev, a_range: range})
+      [get_FXOS_data(%{ref: ref, a_dev: dev, a_range: range})]
     )
   end
 
@@ -104,16 +104,16 @@ defmodule Bluemage.IMU do
     # Read CTRL_REG2 and rewrite it with ST bit low (0xxx xxxx)
     <<reg>> = I2C.write_read!(ref, dev, <<0x2B>>, 1)
     I2C.write(ref, dev, <<0x2B, reg ^^^ 0x80>>)
-    # Return final mean self-test data
-    data
+    # Reverse and return final self-test data list
+    Enum.reverse(data)
   end
 
   def get_FXOS_test(%{ref: ref, a_dev: dev, a_range: range}, tests, data) do
-    mean =
-      get_FXOS_data(%{ref: ref, a_dev: dev, a_range: range})
-      |> Enum.map(fn {k, v} -> {k, (data[k] + v) / 2} end)
-
-    get_FXOS_test(%{ref: ref, a_dev: dev, a_range: range}, tests - 1, mean)
+    get_FXOS_test(
+      %{ref: ref, a_dev: dev, a_range: range},
+      tests - 1,
+      [get_FXOS_data(%{ref: ref, a_dev: dev, a_range: range})] ++ data
+    )
   end
 
   # Get the current FXOS acceloremeter/magnetometer data
@@ -163,6 +163,35 @@ defmodule Bluemage.IMU do
     :ok
   end
 
+  # Get the results of the FXAS self test function for error correction
+  def get_FXAS_test(%{ref: ref, g_dev: dev, g_range: range}, tests \\ 16) do
+    # Read CTRL_REG1 and rewrite it with ST bit high (xx1x xxxx)
+    <<reg>> = I2C.write_read!(ref, dev, <<0x13>>, 1)
+    I2C.write(ref, dev, <<0x13, reg ||| 0x20>>)
+    # Recurse and get the post-test FXAS datapoints
+    get_FXAS_test(
+      %{ref: ref, g_dev: dev, g_range: range},
+      tests - 1,
+      [get_FXAS_data(%{ref: ref, g_dev: dev, g_range: range})]
+    )
+  end
+
+  def get_FXAS_test(%{ref: ref, g_dev: dev, g_range: _range}, 0, data) do
+    # Read CTRL_REG1 and rewrite it with ST bit low (xx0x xxxx)
+    <<reg>> = I2C.write_read!(ref, dev, <<0x13>>, 1)
+    I2C.write(ref, dev, <<0x13, reg ^^^ 0x20>>)
+    # Reverse and return final mean self-test data
+    Enum.reverse(data)
+  end
+
+  def get_FXAS_test(%{ref: ref, g_dev: dev, g_range: range}, tests, data) do
+    get_FXAS_test(
+      %{ref: ref, g_dev: dev, g_range: range},
+      tests - 1,
+      [get_FXAS_data(%{ref: ref, g_dev: dev, g_range: range})] ++ data
+    )
+  end
+
   # Get the current FXAS gyroscope data
   def get_FXAS_data(%{ref: ref, g_dev: dev, g_range: range}) do
     # Set STATUS to 1000 0000 for... some reason (idk, Adafruit does it)
@@ -187,5 +216,11 @@ defmodule Bluemage.IMU do
   # Get the current IMU data in a quick-succession read
   def get_IMU_data(config) do
     get_FXAS_data(config) ++ get_FXOS_data(config)
+  end
+
+  def get_IMU_test(config, tests \\ 16) do
+    [get_FXOS_test(config, tests), get_FXAS_test(config, tests)]
+    |> Enum.zip()
+    |> Enum.map(fn {x, y} -> x ++ y end)
   end
 end
