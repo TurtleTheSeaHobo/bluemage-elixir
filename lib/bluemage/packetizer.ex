@@ -62,29 +62,45 @@ defmodule Bluemage.Packetizer do
   end
 
   def push_packet(%{"data" => _} = packet) do
+    filename = Integer.to_string(yell(RTC, {:get_epoch, self()}) |> elem(0)) <> ".json"
+
     {:ok, file} =
       File.open(
-        "/tmp/experiment/" <>
-          Integer.to_string(yell(RTC, {:get_epoch, self()}) |> elem(0)) <> ".json",
+        "/tmp/buffer/" <> filename,
         [:write]
       )
 
     IO.binwrite(file, Jason.encode!(%{packet | "data" => Enum.reverse(packet["data"])}))
     File.close(file)
 
+    :os.cmd(
+      'mv /tmp/buffer/'
+      ++ to_charlist(filename)
+      ++ ' /tmp/experiment/'
+      ++ to_charlist(filename)
+    )
+
     %{packet | "data" => []}
   end
 
   def push_packet(packet) do
+    filename = Integer.to_string(yell(RTC, {:get_epoch, self()}) |> elem(0)) <> ".json"
+
     {:ok, file} =
       File.open(
-        "/tmp/experiment/" <>
-          Integer.to_string(yell(RTC, {:get_epoch, self()}) |> elem(0)) <> "SP" <> ".json",
+        "/tmp/buffer/" <> filename,
         [:write]
       )
 
     IO.binwrite(file, Jason.encode!(packet))
     File.close(file)
+
+    :os.cmd(
+      'mv /tmp/buffer/'
+      ++ to_charlist(filename)
+      ++ ' /tmp/experiment/'
+      ++ to_charlist(filename)
+    )
 
     packet
   end
