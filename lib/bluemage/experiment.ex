@@ -35,6 +35,11 @@ defmodule Bluemage.Experiment do
   end
 
   def init(_opts) do
+    Logger.info("Creating buffer and experiment tmp directories...")
+
+    :os.cmd('mkdir -p /tmp/buffer/')
+    :os.cmd('mkdir -p /tmp/experiment/')
+
     Logger.info("Checking for IMU and RTC driver readiness...")
 
     case yell(IMU, {:ready?, self()}, 10_000) do
