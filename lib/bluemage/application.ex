@@ -9,6 +9,7 @@ defmodule Bluemage.Application do
     import Supervisor.Spec
 
     children = [
+      Bluemage.EoL,
       Bluemage.RTC,
       Bluemage.IMU,
       Bluemage.Scheduler,
