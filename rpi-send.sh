@@ -1,0 +1,1 @@
+/home/james/bluemage/bluemage-elixir/raspberry-pi-team-sender --no-connect
