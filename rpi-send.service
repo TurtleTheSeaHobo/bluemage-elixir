@@ -1,0 +1,13 @@
+[Unit]
+Description=Raspberry Pi Team Sender startup service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+ExecStart=/bin/bash /home/james/bluemage/bluemage-elixir/rpi-send.sh
+
+[Install]
+WantedBy=multi-user.target
+

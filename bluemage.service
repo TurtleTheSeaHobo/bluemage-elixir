@@ -1,0 +1,13 @@
+[Unit]
+Description=Bluemage application startup service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+Environment=HOME=/home/james
+ExecStart=/bin/bash /home/james/bluemage/bluemage-elixir/bluemage.sh
+
+[Install]
+WantedBy=multi-user.target
